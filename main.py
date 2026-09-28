@@ -1,12 +1,13 @@
 import os
 import time
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import requests
 import yfinance as yf
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# Форекс пари
 SYMBOLS = {
     "EURUSD": "EURUSD=X",
     "GBPUSD": "GBPUSD=X",
@@ -14,6 +15,18 @@ SYMBOLS = {
 }
 
 sent_fvgs = set()
+
+# Легкий веб-сервер для імітації сайту
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+
+def run_health_check_server():
+    port = int(os.getenv("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    server.serve_forever()
 
 def send_telegram_message(message: str):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
@@ -29,12 +42,10 @@ def send_telegram_message(message: str):
 def check_fvgs():
     for name, ticker in SYMBOLS.items():
         try:
-            # Отримуємо останні 4H свічки
             df = yf.download(tickers=ticker, period="5d", interval="1h", progress=False)
             if df.empty or len(df) < 12:
                 continue
 
-            # Ресемплимо в 4H
             df_4h = df.resample('4h').agg({
                 'Open': 'first',
                 'High': 'max',
@@ -85,6 +96,9 @@ def check_fvgs():
             print(f"Error processing {name}: {e}")
 
 if __name__ == "__main__":
+    # Запуск сервера для Render у фоновому потоці
+    threading.Thread(target=run_health_check_server, daemon=True).start()
+    
     send_telegram_message("🤖 <b>4H FVG Autonomous Bot Started!</b>\nМоніторинг 4H FVG активовано.")
     while True:
         check_fvgs()
