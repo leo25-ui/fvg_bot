@@ -16,7 +16,7 @@ SYMBOLS = {
 
 sent_fvgs = set()
 
-# Легкий веб-сервер для імітації сайту
+# Легкий веб-сервер для Render
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -56,47 +56,48 @@ def check_fvgs():
             if len(df_4h) < 3:
                 continue
 
-            c1 = df_4h.iloc[-4]
-            c3 = df_4h.iloc[-2]
-            candle_time = str(df_4h.index[-2])
+            # Проходимо по всій історії закритих свічок (крім останньої незакритої)
+            for i in range(2, len(df_4h) - 1):
+                c1 = df_4h.iloc[i - 2]
+                c3 = df_4h.iloc[i]
+                candle_time = str(df_4h.index[i])
 
-            # Bullish FVG
-            if c3['Low'] > c1['High']:
-                fvg_id = f"{name}_BULL_{candle_time}"
-                if fvg_id not in sent_fvgs:
-                    gap_size = round(float(c3['Low'] - c1['High']), 5)
-                    msg = (
-                        f"🟢 <b>Bullish 4H FVG Detected!</b>\n\n"
-                        f"<b>Pair:</b> {name}\n"
-                        f"<b>Zone Top (Low3):</b> {round(float(c3['Low']), 5)}\n"
-                        f"<b>Zone Bottom (High1):</b> {round(float(c1['High']), 5)}\n"
-                        f"<b>Gap Size:</b> {gap_size}\n"
-                        f"<b>Time:</b> {candle_time}"
-                    )
-                    send_telegram_message(msg)
-                    sent_fvgs.add(fvg_id)
+                # Bullish FVG
+                if c3['Low'] > c1['High']:
+                    fvg_id = f"{name}_BULL_{candle_time}"
+                    if fvg_id not in sent_fvgs:
+                        gap_size = round(float(c3['Low'] - c1['High']), 5)
+                        msg = (
+                            f"🟢 <b>Bullish 4H FVG Detected!</b>\n\n"
+                            f"<b>Pair:</b> {name}\n"
+                            f"<b>Zone Top (Low3):</b> {round(float(c3['Low']), 5)}\n"
+                            f"<b>Zone Bottom (High1):</b> {round(float(c1['High']), 5)}\n"
+                            f"<b>Gap Size:</b> {gap_size}\n"
+                            f"<b>Time:</b> {candle_time}"
+                        )
+                        send_telegram_message(msg)
+                        sent_fvgs.add(fvg_id)
 
-            # Bearish FVG
-            elif c3['High'] < c1['Low']:
-                fvg_id = f"{name}_BEAR_{candle_time}"
-                if fvg_id not in sent_fvgs:
-                    gap_size = round(float(c1['Low'] - c3['High']), 5)
-                    msg = (
-                        f"🔴 <b>Bearish 4H FVG Detected!</b>\n\n"
-                        f"<b>Pair:</b> {name}\n"
-                        f"<b>Zone Top (Low1):</b> {round(float(c1['Low']), 5)}\n"
-                        f"<b>Zone Bottom (High3):</b> {round(float(c3['High']), 5)}\n"
-                        f"<b>Gap Size:</b> {gap_size}\n"
-                        f"<b>Time:</b> {candle_time}"
-                    )
-                    send_telegram_message(msg)
-                    sent_fvgs.add(fvg_id)
+                # Bearish FVG
+                elif c3['High'] < c1['Low']:
+                    fvg_id = f"{name}_BEAR_{candle_time}"
+                    if fvg_id not in sent_fvgs:
+                        gap_size = round(float(c1['Low'] - c3['High']), 5)
+                        msg = (
+                            f"🔴 <b>Bearish 4H FVG Detected!</b>\n\n"
+                            f"<b>Pair:</b> {name}\n"
+                            f"<b>Zone Top (Low1):</b> {round(float(c1['Low']), 5)}\n"
+                            f"<b>Zone Bottom (High3):</b> {round(float(c3['High']), 5)}\n"
+                            f"<b>Gap Size:</b> {gap_size}\n"
+                            f"<b>Time:</b> {candle_time}"
+                        )
+                        send_telegram_message(msg)
+                        sent_fvgs.add(fvg_id)
 
         except Exception as e:
             print(f"Error processing {name}: {e}")
 
 if __name__ == "__main__":
-    # Запуск сервера для Render у фоновому потоці
     threading.Thread(target=run_health_check_server, daemon=True).start()
     
     send_telegram_message("🤖 <b>4H FVG Autonomous Bot Started!</b>\nМоніторинг 4H FVG активовано.")
